@@ -1,0 +1,10 @@
+spring:
+  profiles:
+    active: test
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration
+
+logging:
+  level:
+    com.github.loki4j: OFF

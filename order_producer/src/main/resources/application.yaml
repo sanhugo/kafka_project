@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: order-producer
+  kafka:
+    bootstrap-servers: shop_kafka:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      enable.idempotence: true
+      retry:
+        backoff:
+          ms: 150
+      max.in.flight.requests.per.connection: 1
+
+logging:
+  config: classpath:logback-spring.xml
+

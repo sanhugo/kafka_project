@@ -1,0 +1,6 @@
+rootProject.name = 'kafka-project'
+
+include 'common'
+include 'order_producer'
+include 'order_processor'
+include 'dlq_handler'

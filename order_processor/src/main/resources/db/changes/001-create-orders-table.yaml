@@ -1,0 +1,31 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-orders-table
+      author: sanhugo
+      comment: "Создание таблицы orders"
+      changes:
+        - createTable:
+            tableName: orders
+            columns:
+              - column:
+                  name: id
+                  type: VARCHAR(255)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    primaryKeyName: pk_orders
+              - column:
+                  name: customer_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_amount
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+              - column:
+                  name: order_type
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
