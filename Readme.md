@@ -7,7 +7,7 @@ A learning project: an order stream through Kafka with error handling via a Dead
 | Module | Purpose |
 |---|---|
 | `common` | Shared classes (`Order`, `OrderType`) |
-| `order_producer` | Sends an order to the `orders` topic every 2.5 s (creates the topic on startup) |
+| `order_producer` | Sends an order to the `orders` topic every 2.5 s (creates the topic on startup). Order ids are `ORD-<UUID>`, so they stay unique across restarts |
 | `order_processor` | Reads `orders`, saves orders to Postgres (Liquibase), sends orders without `totalAmount` to `orders.DLT` |
 | `dlq_handler` | Reads `orders.DLT` (consumer group `dlq-group`) |
 
@@ -91,6 +91,7 @@ In Docker these values are set by `docker-compose.yaml`.
 ## Error handling
 
 - An order without `totalAmount` goes straight to `orders.DLT`, where `dlq_handler` reads it.
+- Offsets are committed manually (`ack-mode: manual`) after an order is stored, so a restart does not re-read processed records. Orders are inserted with `ON CONFLICT DO NOTHING`, so a redelivered record is harmless.
 - An order with `customerId=TEMP_ERROR` is retried 3 times at 1.5 s intervals. If the retries fail, the record is skipped and does not go to the DLT.
 
 ## Troubleshooting

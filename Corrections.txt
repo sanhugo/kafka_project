@@ -75,6 +75,62 @@ logback-test.xml files, order_processor's test application.yaml, the Liquibase c
 (001-create-orders-table.yaml), KafkaConfig.java and OrderProcessorApplicationTests.java.
 Readme.md and this file were translated too.
 
+6. order_processor: orders were never stored, offsets were not committed per record
+------------------------------------------------------------------------------------
+6.1. OrderRepository.insertIfAbsent(...) (INSERT ... ON CONFLICT (id) DO NOTHING) replaces
+     orderRepository.save(...) in OrderService.
+     Before, the orders table stayed empty even though "Saved Successfully" was logged:
+     the order id is assigned by the producer, so Spring Data JDBC treated every entity as
+     existing and ran an UPDATE that silently affected 0 rows (no exception). The insert is
+     also idempotent, so a redelivered record does not fail or create a duplicate.
+6.2. KafkaService.listen(...) now takes an Acknowledgment and calls ack.acknowledge()
+     after the order is stored.
+     Before, with ack-mode: manual and no acknowledge() call, offsets were committed only
+     incidentally when the error handler recovered a failed record, so after a restart
+     the records after the last failure on each partition were read again.
+     Verified: after a restart with no new messages nothing is re-read; replaying the last
+     10 records per partition inserted no new rows (duplicates logged as "already exists").
+     Note: the producer restarts its counter, so order ids (ORD-1, ORD-2, ...) are reused after
+     a producer restart, and ON CONFLICT DO NOTHING keeps the first order stored under an id.
+
+7. order_producer: unique order ids
+-----------------------------------
+7.1. OrderSenderService now generates the id as "ORD-" + UUID.randomUUID().
+     Before, it was "ORD-" + counter, and the counter restarted from 1 on every producer restart,
+     so ids were reused and ON CONFLICT DO NOTHING in order_processor kept only the first order
+     stored under an id.
+     The counter is kept only to choose the scenario (sequence % 10 == 2: no amount;
+     5 or 8: TEMP_ERROR customer) and is shown in the log: "Order ORD-<uuid> (#17) created ...".
+     Verified: after a producer restart no id was produced twice and new orders were stored.
+     Orders stored earlier keep their old ids (ORD-<number>).
+
+8. docker-compose.yaml: Kafka healthcheck
+-----------------------------------------
+8.1. shop_kafka healthcheck: timeout 5s -> 30s, interval 15s, retries 10, start_period 30s.
+     The check runs kafka-topics.sh (a JVM), and under load (e.g. during a build) it exceeded 5s,
+     the broker was marked unhealthy, and docker compose up refused to start dependent services
+     ("dependency failed to start: container shop_kafka is unhealthy") although Kafka was working.
+
+9. dlq_handler: offsets were never committed
+--------------------------------------------
+9.1. KafkaDLQConsumer.listen(...) now takes an Acknowledgment and calls ack.acknowledge()
+     after the record is handled (same problem as 6.2: ack-mode is manual).
+     Before, dlq-group had no committed offsets at all, so every restart re-read the whole
+     orders.DLT topic (501 records re-processed after one restart).
+     Verified: dlq-group commits offsets and lag is 0; after a restart only the 2 records that
+     arrived during the restart were processed (log-end offsets grew by exactly 2).
+     The first start after the fix still reads the topic once, because no offsets existed yet.
+
+10. Repository hygiene
+----------------------
+10.1. Added a root .gitignore (.gradle/, build/, .idea/, *.iml, out/, IDE and OS files).
+      Build output (build/, common/build/), .gradle/ and .idea/ files had been added to the git index.
+      They were removed from the index (git rm --cached); the files on disk are untouched.
+      Already committed IDE files (.idea/.gitignore, .idea/.name, kafka_project.iml) are staged for
+      deletion from the repository as well. Nothing is committed yet.
+10.2. Reverted the uncommitted change in order_processor/.../entity/Order.java (Persistable with
+      isNew = true): saving goes through OrderRepository.insertIfAbsent, so it had no effect.
+
 VERIFICATION
 ------------
 The stack was started with docker compose up -d --build (the build runs in Docker).

@@ -8,6 +8,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import ru.sanhugo.common.OrderType;
 
+import java.util.Random;
+import java.util.UUID;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -17,14 +20,14 @@ public class OrderSenderService {
     long customerId = 1L;
     boolean isPurchased = false;
     private final KafkaTemplate<String, Order> kafkaTemplate;
+    Random random = new Random();
 
     @Scheduled(fixedRate = 2500)
     public void sendOrder(){
-        Order order = createOrder(counter);
+        long sequence = counter;
+        Order order = createOrder(sequence);
         kafkaTemplate.send("orders", order.getOrderId(),order)
-                .thenAccept(result -> {
-                    log.info("Order {} created and sent to broker", order.getOrderId());
-                })
+                .thenAccept(result -> log.info("Order {} (#{}) created and sent to broker", order.getOrderId(), sequence))
                 .exceptionally(ex -> {
                     log.error("Error sending order {}", order.getOrderId(), ex);
                     return null;
@@ -34,36 +37,29 @@ public class OrderSenderService {
         isPurchased^=true;
     }
 
-    private Order createOrder(long orderId){
-        String order_id = "ORD-"+orderId;
-        Order order;
-        switch ((int) (orderId%10)) {
-            case 2 -> {
-                order = Order.builder()
-                        .orderId(order_id)
+    // The id is unique across producer restarts; the sequence number only selects the scenario
+    // (sequence % 10 == 2: no amount; sequence % 10 == 5 or 8: TEMP_ERROR customer).
+    private Order createOrder(long sequence){
+        String orderId = "ORD-" + UUID.randomUUID();
+        return switch ((int) (sequence%10)) {
+            case 2 ->   Order.builder()
+                        .orderId(orderId)
                         .customerId(String.valueOf(customerId%30))
                         .type(isPurchased ? OrderType.PURCHASE : OrderType.SUBSCRIPTION)
                         .totalAmount(null)
                         .build();
-            }
-            case 5,8 -> {
-                order = Order.builder()
-                        .orderId(order_id)
+            case 5,8 -> Order.builder()
+                        .orderId(orderId)
                         .customerId("TEMP_ERROR")
                         .type(isPurchased ? OrderType.PURCHASE : OrderType.SUBSCRIPTION)
-                        .totalAmount((int) (Math.random()*20+1))
+                        .totalAmount(random.nextInt(20)+1)
                         .build();
-            }
-            default -> {
-                order = Order.builder()
-                        .orderId(order_id)
+            default ->  Order.builder()
+                        .orderId(orderId)
                         .customerId(String.valueOf(customerId%30))
                         .type(isPurchased ? OrderType.PURCHASE : OrderType.SUBSCRIPTION)
-                        .totalAmount((int) (Math.random()*20+1))
+                        .totalAmount(random.nextInt(20)+1)
                         .build();
-            }
-
-        }
-        return order;
+        };
     }
 }

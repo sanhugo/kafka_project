@@ -44,9 +44,11 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      # the check starts a JVM, so 5s is not enough when the machine is busy (e.g. during a build)
+      timeout: 30s
+      retries: 10
+      start_period: 30s
 
   loki_app:
     image: grafana/loki:3.0.0

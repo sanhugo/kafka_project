@@ -19,7 +19,13 @@ public class OrderService {
     OrderMapper mapper;
 
     public void saveOrder(Order order) {
-        orderRepository.save(mapper.toEntity(order));
-        log.info("Order {} Saved Successfully", order.getOrderId());
+        ru.sanhugo.order_processor.entity.Order entity = mapper.toEntity(order);
+        int inserted = orderRepository.insertIfAbsent(
+                entity.getId(), entity.getCustomerId(), entity.getTotalAmount(), entity.getOrderType().name());
+        if (inserted > 0) {
+            log.info("Order {} Saved Successfully", order.getOrderId());
+        } else {
+            log.info("Order {} already exists, skipping duplicate", order.getOrderId());
+        }
     }
 }
