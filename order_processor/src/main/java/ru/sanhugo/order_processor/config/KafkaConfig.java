@@ -34,12 +34,13 @@ public class KafkaConfig {
 
                     Throwable cause = exception.getCause();
 
-                    // Если это бизнес-ошибка валидации — сразу в DLQ (без retry)
+                    // Business validation error: published to orders.DLT right away (no retry)
                     if (cause instanceof OrderValidationException) {
                         return new TopicPartition("orders.DLT", record.partition()%2);
                     }
 
-                    // Для всех остальных ошибок — тоже в DLQ (после исчерпания retry)
+                    // All other errors (e.g. TEMP_ERROR): no destination, so nothing is published to the DLT.
+                    // The record is retried 3 times (see backOff below), then skipped and its offset is committed.
                     return null;
                 };
 
@@ -50,7 +51,7 @@ public class KafkaConfig {
 
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, backOff);
 
-        // Исключения, которые НЕ нужно ретраить — сразу в DLQ
+        // Validation errors are not retried: they go straight to the recoverer (and thus to the DLT)
         handler.addNotRetryableExceptions(OrderValidationException.class);
 
         return handler;

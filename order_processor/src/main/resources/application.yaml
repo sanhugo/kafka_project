@@ -3,7 +3,7 @@ spring:
   application:
     name: order_processor
   kafka:
-    bootstrap-servers: shop_kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
     consumer:
       group-id: processor-group
       auto-offset-reset: earliest

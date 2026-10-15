@@ -8,14 +8,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @SpringBootTest(properties = "spring.liquibase.enabled=false")
 class OrderProcessorApplicationTests {
 
-    // Создаем фиктивную KafkaTemplate специально для тестов.
-    // Это удовлетворит зависимость в KafkaConfig.errorHandler(KafkaOperations)
+    // Create a mock KafkaTemplate specifically for tests.
+    // This satisfies the dependency in KafkaConfig.errorHandler(KafkaOperations)
     @MockitoBean
     private KafkaTemplate<?, ?> kafkaTemplate;
 
     @Test
     void contextLoads() {
-        // Тест просто проверяет, что контекст загрузился без ошибок
-        // Теперь он успешно загрузится, так как зависимость удовлетворена моком
+        // The test just checks that the context loads without errors
+        // It now loads successfully because the dependency is satisfied by the mock
     }
 }

@@ -3,7 +3,7 @@
 
     <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="order_producer"/>
 
-    <!-- Устанавливаем contextName, чтобы Loki4j подхватил его как метку app -->
+    <!-- Set contextName so that Loki4j picks it up as the app label -->
     <contextName>${appName}</contextName>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -13,9 +13,9 @@
     </appender>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>/var/logs/order_processor/application.log</file>
+        <file>/var/logs/order_producer/application.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>/var/logs/order_processor/application-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <fileNamePattern>/var/logs/order_producer/application-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
             <maxFileSize>100MB</maxFileSize>
             <maxHistory>14</maxHistory>
             <totalSizeCap>1000MB</totalSizeCap>
@@ -27,12 +27,15 @@
 
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
-            <url>http://localhost:3100/loki/api/v1/push</url>
+            <url>${LOKI_URL:-http://localhost:3100/loki/api/v1/push}</url>
         </http>
-        <format>
-            <labelPattern>app=${appName},level=%level</labelPattern>
-            <messagePattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg</messagePattern>
-        </format>
+        <labels>
+            app = ${appName}
+            level = %level
+        </labels>
+        <message>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg</pattern>
+        </message>
     </appender>
 
     <root level="INFO">

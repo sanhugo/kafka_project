@@ -2,7 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 001-create-orders-table
       author: sanhugo
-      comment: "Создание таблицы orders"
+      comment: "Create the orders table"
       changes:
         - createTable:
             tableName: orders

@@ -1,0 +1,92 @@
+CORRECTIONS
+===========
+
+1. docker-compose.yaml
+----------------------
+1.1. order_processor: added PG_HOST=shop and PG_PORT=5432.
+     Before, the application connected to Postgres at localhost:5434, Liquibase failed,
+     the container exited with code 1, and the orders.DLT topic was never created.
+
+1.2. shop_kafka: added a second listener for applications running on the host (IDE).
+       KAFKA_LISTENERS:                      PLAINTEXT://0.0.0.0:9092,HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+       KAFKA_ADVERTISED_LISTENERS:           PLAINTEXT://shop_kafka:9092,HOST://localhost:29092
+       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+     Only port 29092 is now published to the host (9092 and 9093 were removed).
+     Containers still use shop_kafka:9092.
+
+1.3. loki_app: added the network alias "loki"; LOKI_URL in all applications
+     is now http://loki:3100/loki/api/v1/push.
+     Loki4j parses the URL with java.net.URI, which does not accept "_" in a host name
+     (loki_app) -- the applications failed during logback initialization.
+
+1.4. shop_kafka: added KAFKA_LOG_DIRS=/var/lib/kafka/data.
+     Before, the broker wrote its data to /tmp inside the container, and the kafka-data volume
+     (mounted at /var/lib/kafka/data) stayed empty, so topics, messages and consumer offsets
+     were lost whenever the container was recreated.
+     Verified: after docker compose up -d --force-recreate shop_kafka the topics (orders, orders.DLT),
+     the end offsets of orders and the consumer groups (processor-group, dlq-group) were unchanged.
+     Note: the first start with this setting begins with an empty log (the old data was in /tmp).
+
+2. application.yaml
+-------------------
+2.1. order_processor, order_producer, dlq_handler:
+       spring.kafka.bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
+     Before, the address was hard-coded as shop_kafka:9092, the KAFKA_BOOTSTRAP variable from
+     compose was ignored, and the name shop_kafka could not be resolved from the IDE.
+     In Docker it is shop_kafka:9092, from the IDE it is localhost:29092.
+
+2.2. dlq_handler: group-id changed from processor-group to dlq-group.
+     Before, dlq_handler and order_processor shared one group even though they read different topics.
+
+3. logback-spring.xml (order_processor, order_producer, dlq_handler)
+--------------------------------------------------------------------
+3.1. Loki URL: ${LOKI_URL:-http://localhost:3100/loki/api/v1/push}
+     Before, it was hard-coded as localhost:3100, so logs from containers never reached Loki.
+
+3.2. The Loki4j config was rewritten for version 2.1.0: the <format> block was replaced with
+     <labels> (app, level) and <message><pattern>.
+     Before, <format> was ignored (warnings "Ignoring unknown property [format]"
+     and "No message layout specified") and nothing reached Loki.
+
+3.3. File log paths:
+       order_producer -> /var/logs/order_producer/
+       dlq_handler    -> /var/logs/dlq_handler/
+     Before, both wrote to /var/logs/order_processor/ (the path was copied from the processor).
+     order_processor's path did not change.
+
+4. Dockerfile, .dockerignore, docker-compose.yaml: the build moved into Docker
+-------------------------------------------------------------------------------
+4.1. The Dockerfile is now multi-stage: the build stage (eclipse-temurin:21-jdk-alpine)
+     runs ./gradlew bootJar for all modules once (the stage does not depend on MODULE, so BuildKit
+     reuses it for all three services), and the final stage (21-jre-alpine) copies the jar
+     of the needed module. The gradle cache is kept in a cache mount between builds.
+     CRLF line endings are stripped from gradlew before it runs (in a Windows working copy
+     they prevent it from running on Linux).
+4.2. In docker-compose.yaml the JAR_FILE build argument was replaced with MODULE
+     (order_processor, order_producer, dlq_handler).
+4.3. Added .dockerignore (.git, .gradle, .idea, build) so that local artifacts
+     do not end up in the build context.
+     Jars no longer need to be built locally: docker compose up -d --build is enough.
+
+5. Comments translated to English
+---------------------------------
+Russian comments were translated in: Dockerfile, docker-compose.yaml, the logback-spring.xml and
+logback-test.xml files, order_processor's test application.yaml, the Liquibase changelog
+(001-create-orders-table.yaml), KafkaConfig.java and OrderProcessorApplicationTests.java.
+Readme.md and this file were translated too.
+
+VERIFICATION
+------------
+The stack was started with docker compose up -d --build (the build runs in Docker).
+- All three applications are running, and Kafka is reachable from the containers.
+- The orders and orders.DLT topics exist, and orders are saved to Postgres.
+- Consumer groups: processor-group and dlq-group.
+- Loki has logs labeled app=order_producer, order_processor, dlq_handler.
+- Each container has its own application.log.
+
+NOT CHANGED (for information)
+-----------------------------
+- Orders with customerId=TEMP_ERROR (every 5th and 8th) do not go to the DLT after 3 retries:
+  destinationResolver in KafkaConfig returns null, so the record is skipped (lost).
+  This is intended; the Java logic was not touched.
+- A local ./gradlew bootJar is only needed for running from an IDE and checking compilation.
