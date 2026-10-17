@@ -64,7 +64,7 @@ A local build is only needed for running from an IDE or checking compilation: `.
 | Loki | `http://localhost:3100` |
 | Grafana | `http://localhost:3000` (login and password are in `docker-compose.yaml`) |
 
-In Grafana, add a Loki data source with the URL `http://loki:3100` and filter logs by the `app` label (`order_producer`, `order_processor`, `dlq_handler`).
+The Loki data source is provisioned automatically (`grafana/provisioning/datasources/loki.yaml`), so no manual setup is needed. In Grafana open Explore, pick the Loki data source and filter logs by the `app` label (`order_producer`, `order_processor`, `dlq_handler`).
 
 ## Running the applications from an IDE
 

@@ -84,6 +84,8 @@ services:
       - loki_app
     volumes:
       - grafana-data:/var/lib/grafana
+      # Loki data source is created automatically on startup
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
 
   # === ORDER_PROCESSOR: connects to the DB and Kafka ===
   order_processor:

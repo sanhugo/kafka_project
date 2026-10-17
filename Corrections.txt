@@ -131,6 +131,12 @@ Readme.md and this file were translated too.
 10.2. Reverted the uncommitted change in order_processor/.../entity/Order.java (Persistable with
       isNew = true): saving goes through OrderRepository.insertIfAbsent, so it had no effect.
 
+7. Grafana: Loki data source is provisioned automatically
+---------------------------------------------------------
+Added grafana/provisioning/datasources/loki.yaml (Loki at http://loki:3100, default data source)
+and mounted it read-only into the grafana container in docker-compose.yaml, so the data source
+no longer has to be added by hand.
+
 VERIFICATION
 ------------
 The stack was started with docker compose up -d --build (the build runs in Docker).
